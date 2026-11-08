@@ -333,28 +333,110 @@ select:focus,
 .tools {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 8px;
+  flex-wrap: nowrap;
 }
 
+.date-input,
 .search-input,
 .filter-select {
-  min-width: 180px;
-  height: 44px;
+  height: 42px;
+  padding: 8px 12px;
+  font-size: 0.92rem;
+}
+
+.date-input {
+  width: 142px;
+  flex: 0 0 auto;
 }
 
 .search-input {
-  flex: 1 1 220px;
-  max-width: 280px;
+  width: 180px;
+  min-width: 130px;
+  flex: 1 1 auto;
 }
 
 .filter-select {
-  flex: 0 0 170px;
+  width: 140px;
+  min-width: 120px;
+  flex: 0 0 auto;
 }
 
 .scroll {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border-radius: 10px;
+}
+
+table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+}
+
+@keyframes rowFlash {
+  0% { background-color: rgba(215, 165, 38, 0.38); }
+  100% { background-color: transparent; }
+}
+
+tr.highlighted {
+  animation: rowFlash 3.5s ease-out;
+}
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.pagination-info {
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.btn-page {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-page:hover:not(:disabled) {
+  background: #eef4f0;
+  border-color: var(--green);
+}
+
+.btn-page.active {
+  background: var(--forest);
+  color: #fff;
+  border-color: var(--forest);
+}
+
+.btn-page:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 table {
@@ -426,6 +508,16 @@ td.name {
   .stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .tools {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 640px) {
@@ -472,14 +564,24 @@ td.name {
 
   .tools {
     width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
+  .date-input,
   .search-input,
   .filter-select,
-  .btn.secondary {
+  .tools .btn {
     width: 100%;
     max-width: none;
     flex: 1 1 100%;
+  }
+
+  .pagination-bar {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    text-align: center;
   }
 }
 
