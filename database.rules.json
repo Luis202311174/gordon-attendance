@@ -1,0 +1,26 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "students": {
+      ".read": true
+    },
+    "attendance": {
+      ".read": true,
+      ".write": true
+    },
+    "attendanceSessions": {
+      ".read": true,
+      ".write": true
+    },
+    "deniedLogs": {
+      ".read": true,
+      ".write": true
+    },
+    "deviceEvents": {
+      ".read": true,
+      ".write": true
+    }
+  }
+}
+
