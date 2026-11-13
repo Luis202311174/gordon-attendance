@@ -552,7 +552,7 @@ export default function App() {
         setResult({
           kind: 'denied',
           title: 'Access Denied',
-          msg: `Student number ${id} is not registered on the BSIT 4D roster.`
+          msg: `Student number ${id} is not registered on the BSIT 4D.`
         })
 
         return
@@ -836,6 +836,36 @@ export default function App() {
         absent: 'Not Logged'
       }
 
+      // Every individual time in / time out session
+      const sessions = mine.map((record) => {
+        const sIn =
+          toMs(record.timeIn) || toMs(record.timestamp)
+        const sOut = toMs(record.timeOut)
+
+        let sDur = 0
+        if (sIn && sOut && sOut >= sIn) {
+          sDur = sOut - sIn
+        } else if (sIn && !sOut && isViewingToday) {
+          const elapsed = now - sIn
+          if (elapsed >= 0 && elapsed < 86400000) sDur = elapsed
+        }
+
+        return {
+          id: record.id,
+          inTime: sIn,
+          outTime: sOut,
+          duration: sDur,
+          open: !sOut
+        }
+      })
+
+      const inCount = sessions.filter((s) => s.inTime).length
+      const outCount = sessions.filter((s) => s.outTime).length
+      const totalDuration = sessions.reduce(
+        (sum, s) => sum + (s.duration || 0),
+        0
+      )
+
       return {
         ...student,
         id: studentId,
@@ -848,6 +878,10 @@ export default function App() {
         outTime,
         status,
         count: mine.length,
+        sessions,
+        inCount,
+        outCount,
+        totalDuration,
         duration,
         statusText: labels[status]
       }
@@ -940,6 +974,66 @@ export default function App() {
   )
 
   // =====================================
+  // TIME IN / TIME OUT LOG HISTORY
+  // =====================================
+
+  const logEvents = useMemo(() => {
+    const events = []
+
+    filteredAttendanceByDate.forEach((record) => {
+      const studentID = String(record.studentID || '').trim()
+      const name = record.name || `Student ${studentID}`
+      const inT = toMs(record.timeIn) || toMs(record.timestamp)
+      const outT = toMs(record.timeOut)
+
+      if (inT) {
+        events.push({
+          key: `${record.id}-in`,
+          studentID,
+          name,
+          type: 'in',
+          time: inT
+        })
+      }
+
+      if (outT) {
+        events.push({
+          key: `${record.id}-out`,
+          studentID,
+          name,
+          type: 'out',
+          time: outT
+        })
+      }
+    })
+
+    // Oldest first to number each student's time in / out
+    events.sort((a, b) => a.time - b.time)
+
+    const counters = {}
+    events.forEach((ev) => {
+      const c = counters[ev.studentID] ||
+        (counters[ev.studentID] = { in: 0, out: 0 })
+      c[ev.type] += 1
+      ev.seq = c[ev.type]
+    })
+
+    events.forEach((ev) => {
+      ev.totalIn = counters[ev.studentID].in
+      ev.totalOut = counters[ev.studentID].out
+    })
+
+    // Newest first for display
+    return events.reverse()
+  }, [filteredAttendanceByDate])
+
+  const shownLogs = logEvents.filter((log) =>
+    (log.name + log.studentID)
+      .toLowerCase()
+      .includes(query.toLowerCase())
+  )
+
+  // =====================================
   // PAGINATION
   // =====================================
 
@@ -953,18 +1047,32 @@ export default function App() {
     Math.ceil(shownDenied.length / PAGE_SIZE)
   )
 
+  const totalLogPages = Math.max(
+    1,
+    Math.ceil(shownLogs.length / PAGE_SIZE)
+  )
+
   const activeTotalPages =
     activeTab === 'attendance'
       ? totalPages
-      : totalDeniedPages
+      : activeTab === 'logs'
+        ? totalLogPages
+        : totalDeniedPages
 
   const activeTotalItems =
     activeTab === 'attendance'
       ? shownRows.length
-      : shownDenied.length
+      : activeTab === 'logs'
+        ? shownLogs.length
+        : shownDenied.length
 
   const startIndex =
     (currentPage - 1) * PAGE_SIZE
+
+  const paginatedLogs = shownLogs.slice(
+    startIndex,
+    startIndex + PAGE_SIZE
+  )
 
   const paginatedRows = shownRows.slice(
     startIndex,
@@ -1011,6 +1119,9 @@ export default function App() {
         'Student ID',
         'Name',
         'Course',
+        'Time In Count',
+        'Time Out Count',
+        'Session #',
         'Time In',
         'Time Out',
         'Duration',
@@ -1018,19 +1129,40 @@ export default function App() {
       ]]
 
       rows.forEach((row) => {
-        lines.push([
-          row.id,
-          row.name,
-          row.course || 'BSIT',
-          row.inTime
-            ? `${fmtDate(row.inTime)} ${fmtTime(row.inTime)}`
-            : '—',
-          row.outTime
-            ? `${fmtDate(row.outTime)} ${fmtTime(row.outTime)}`
-            : '—',
-          fmtDur(row.duration),
-          row.statusText
-        ])
+        if (!row.sessions.length) {
+          lines.push([
+            row.id,
+            row.name,
+            row.course || 'BSIT',
+            0,
+            0,
+            '—',
+            '—',
+            '—',
+            '—',
+            row.statusText
+          ])
+          return
+        }
+
+        row.sessions.forEach((s, i) => {
+          lines.push([
+            row.id,
+            row.name,
+            row.course || 'BSIT',
+            row.inCount,
+            row.outCount,
+            i + 1,
+            s.inTime
+              ? `${fmtDate(s.inTime)} ${fmtTime(s.inTime)}`
+              : '—',
+            s.outTime
+              ? `${fmtDate(s.outTime)} ${fmtTime(s.outTime)}`
+              : 'Still Timed In',
+            fmtDur(s.duration),
+            s.open ? 'Timed In' : 'Timed Out'
+          ])
+        })
       })
 
       const csv = lines
@@ -1044,6 +1176,44 @@ export default function App() {
       downloadFile(
         csv,
         `BSIT4D-attendance-${dateLabel}.csv`
+      )
+
+    } else if (activeTab === 'logs') {
+
+      const lines = [[
+        'Date',
+        'Exact Time',
+        'Student Name',
+        'Student ID',
+        'Action',
+        'Count'
+      ]]
+
+      shownLogs.forEach((log) => {
+        const label = log.type === 'in' ? 'Time In' : 'Time Out'
+        const total = log.type === 'in' ? log.totalIn : log.totalOut
+
+        lines.push([
+          fmtDate(log.time),
+          fmtTime(log.time),
+          log.name,
+          log.studentID,
+          label,
+          `${label} #${log.seq} of ${total}`
+        ])
+      })
+
+      const csv = lines
+        .map((line) =>
+          line.map((value) =>
+            `"${String(value ?? '').replace(/"/g, '""')}"`
+          ).join(',')
+        )
+        .join('\n')
+
+      downloadFile(
+        csv,
+        `BSIT4D-logs-${dateLabel}.csv`
       )
 
     } else {
@@ -1285,7 +1455,7 @@ export default function App() {
           <Stat
             n={stats.total}
             t="Total Students"
-            s="BSIT 4D Roster"
+            s="BSIT 4D"
           />
 
           <Stat
@@ -1421,6 +1591,27 @@ export default function App() {
                     }}
                   >
                     Attendance ({filteredAttendanceByDate.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setActiveTab('logs')
+                    }
+                    style={{
+                      background:
+                        activeTab === 'logs'
+                          ? '#fff'
+                          : 'transparent',
+                      border: 'none',
+                      borderRadius: 6,
+                      padding: '6px 12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      color: 'var(--text)'
+                    }}
+                  >
+                    Logs ({logEvents.length})
                   </button>
 
                   <button
@@ -1602,6 +1793,57 @@ export default function App() {
                         className="empty"
                       >
                         No students match your filter or search query for this date.
+                      </td>
+                    </tr>
+                  )}
+
+                </tbody>
+              </table>
+
+            ) : activeTab === 'logs' ? (
+
+              <table>
+
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Exact Time</th>
+                    <th>Student Name</th>
+                    <th>Student ID</th>
+                    <th>Action</th>
+                    <th>Count</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+
+                  {paginatedLogs.map((log) => (
+                    <tr key={log.key}>
+                      <td>{fmtDate(log.time)}</td>
+                      <td><b>{fmtTime(log.time)}</b></td>
+                      <td className="name">{log.name}</td>
+                      <td>{log.studentID}</td>
+                      <td>
+                        <span className={`pill ${log.type}`}>
+                          {log.type === 'in' ? 'Time In' : 'Time Out'}
+                        </span>
+                      </td>
+                      <td>
+                        {log.type === 'in' ? 'Time In' : 'Time Out'} #{log.seq}
+                        <span className="muted-count">
+                          {' '}of {log.type === 'in' ? log.totalIn : log.totalOut}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {!shownLogs.length && (
+                    <tr>
+                      <td
+                        colSpan="6"
+                        className="empty"
+                      >
+                        No time in / time out logs for this date.
                       </td>
                     </tr>
                   )}

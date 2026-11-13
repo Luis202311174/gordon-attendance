@@ -486,6 +486,11 @@ td.name {
 .pill.out { background: var(--warning); color: #735d16; }
 .pill.absent { background: var(--danger); color: #8f4735; }
 
+.muted-count {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 .empty {
   text-align: center;
   color: var(--muted);
